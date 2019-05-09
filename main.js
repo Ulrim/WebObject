@@ -1,3 +1,7 @@
+
+var para = document.querySelector('p');
+var count = 0;
+
 // chap01. setup canvas
 
 // html에서 canvas 태그 확인
@@ -18,19 +22,28 @@ function random(min, max) {
 
 // chap02. 공 모델링하기
 
-// 공 정의.
-function Ball(x, y, velX, velY, color, size) {
-    // x,y 좌표는 볼이 화면에서 시작할 수평 및 수직 좌표.
+// 형상 생성자 정의
+function Shape(x, y, velX, velY, exists) {
     this.x = x;
     this.y = y;
-    // velX, velY는 각 공에 수평 및 수직 속도가 주어짐.
     this.velX = velX;
     this.velY = velY;
+    this.exists = exists;
+}
+
+// 공 정의.
+function Ball(x, y, velX, velY, color, size, exists) {
+    // x,y 좌표는 볼이 화면에서 시작할 수평 및 수직 좌표.
+    // velX, velY는 각 공에 수평 및 수직 속도가 주어짐.
+    Shape.call(this, x, y, velX, velY, exists);
     // 각 공은 하나의 색을 얻음.
     this.color = color;
     // 각 공의 크기를 가짐.
     this.size = size;
 }
+
+Ball.prototype = Object.create(Shape.prototype);
+Ball.prototype.constructor = Ball;
 
 // 공 그리기 draw() 함수 사용.
 Ball.prototype.draw = function() {
@@ -88,19 +101,22 @@ Ball.prototype.update = function() {
 // chap03. 공 애니메이션하기
 
 var balls = [];
-
 // Ball(x, y, velX, velY, color, size)
-while (balls.length < 25) {
-    var size = random(10, 20);
-    var ball = new Ball (
-        random(0 + size, width - size),
-        random(0 + size,height - size),
-        random(7, -7),
-        random(-7, 7),
-        'rgb(' + random(0,255) + ',' + random(0,255) + ',' + random(0,255) + ')', size
-    );
-
-    balls.push(ball);
+function setball(set) {
+    while (balls.length < set) {
+        var size = random(10, 20);
+        var ball = new Ball (
+            random(0 + size, width - size),
+            random(0 + size,height - size),
+            random(7, -7),
+            random(-7, 7),
+            'rgb(' + random(0,255) + ',' + random(0,255) + ',' + random(0,255) + ')', 
+            size, true
+        );
+        balls.push(ball);
+        count++;
+        para.textContent = 'Ball count: ' + count;
+    }
 }
 
 function loop() {
@@ -111,10 +127,16 @@ function loop() {
 
     // 프레임의 위치와 속도에 대한 필요한 업데이트 수행.
     for (var i = 0; i < balls.length; i++) {
-        balls[i].draw();
-        balls[i].update();
-        balls[i].collisionDetect();
+        if(balls[i].exists){
+            balls[i].draw();
+            balls[i].update();
+            balls[i].collisionDetect();
+        }
     }
+    
+    evil.draw();
+    evil.checkBounds();
+    evil.collisionDetect();
 
     // 함수가 실행될 때마다 함수 자체가 호출되어 반복 실행.
     requestAnimationFrame(loop);
@@ -134,12 +156,89 @@ Ball.prototype.collisionDetect = function() {
             var dy = this.y - balls[j].y;
             var distance = Math.sqrt(dx * dx + dy * dy);
 
-            if (distance < this.size + balls[j].size) {
+            if (distance < this.size + balls[j].size && balls[j].exists) {
                 balls[j].color = this.color = 'rgb(' + random(0, 255) + ',' + random(0, 255) + ',' + random(0, 255) + ')';
             }
         }
     }
 }
+
+// 사용자 공 정의
+function EvilCircle(x, y, exists) {
+    Shape.call(this, x, y, 20, 20, exists);
+
+    this.color = 'white';
+    this.size = 10;
+}
+//상속
+EvilCircle.prototype = Object.create(Shape.prototype);
+EvilCircle.prototype.constructor = EvilCircle;
+
+// draw() 정의
+EvilCircle.prototype.draw = function() {
+    ctx.beginPath();
+    ctx.strokeStyle = this.color;
+    ctx.lineWidth = 3;
+    ctx.arc(this.x, this.y, this.size, 0, 2 * Math.PI);
+    ctx.stroke();
+};
+
+//checkBounds 정의
+EvilCircle.prototype.checkBounds = function() {
+    if((this.x + this.size) >= width) {
+        this.x -= this.size;
+    }
+
+    if((this.x - this.size) <= 0) {
+        this.x += this.size;
+    }
+
+    if((this.y + this.size) >= height) {
+        this.y -= this.size;
+    }
+
+    if((this.y - this.size) <= 0) {
+        this.y += this.size;
+    }
+};
+
+//setControls method
+EvilCircle.prototype.setControls = function() {
+    var _this = this;
+    window.onkeydown = function(e) {
+        if(e.keyCode === 65) { //a
+            _this.x -= _this.velX;
+        } else if(e.keyCode === 68) { // d
+            _this.x += _this.velX;
+        } else if(e.keyCode === 87) { // w
+            _this.y -= _this.velY;
+        } else if(e.keyCode === 83) { // s
+            _this.y += _this.velY;
+        }
+    };
+};
+
+//충돌 감지
+EvilCircle.prototype.collisionDetect = function () {
+    for(var j = 0; j < balls.length; j++) {
+        if (balls[j].exists) {
+            var dx = this.x - balls[j].x;
+            var dy = this.y - balls[j].y;
+            var distance = Math.sqrt(dx * dx + dy * dy);
+        
+            if (distance < this.size + balls[j].size) {
+                balls[j].exists = false; // 볼 삭제
+                count--;
+                para.textContent = 'Ball count: ' + count;
+            }
+        }
+    }
+};
+
+var evil = new EvilCircle(random(0,width), random(0,height), true);
+evil.setControls();
+
+setball(10); // 볼 갯수 설정
 
 // 애니메이션 시작!
 loop();
